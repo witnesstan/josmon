@@ -18,20 +18,40 @@ func errHandler(e error) {
 	}
 }
 
-func inputWebPages(cdfile string) *[]string {
-
+func readFile(infile string) *[]string {
 	var webTarget []string
 
-	file, err := os.Open(cdfile)
-	errHandler(err)
-	defer file.Close()
+	_, err := os.Stat(infile)
+	if err == nil {
+		file, err := os.Open(infile)
+		errHandler(err)
+		defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		webTarget = append(webTarget, scanner.Text())
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			webTarget = append(webTarget, scanner.Text())
+		}
 	}
-
 	return &webTarget
+}
+
+func readWebList(file string) *[]string {
+	ptrURLs := readFile(file)
+	return ptrURLs
+}
+
+func readSigCache(file string) *map[string]map[string]string {
+	mapSig := make(map[string]map[string]string)
+
+	ptrSigs := readFile(file)
+	for _, line := range *ptrSigs {
+		p := strings.Split(line, ",")
+		mapSig[p[0]] = map[string]string{
+			"sig": p[1],
+			"lastupd": p[2],
+		}
+	}
+	return &mapSig
 }
 
 func getWebPage(url string) string {
@@ -40,7 +60,9 @@ func getWebPage(url string) string {
 	defer response.Body.Close()
 
 	html, err := ioutil.ReadAll(response.Body)
-	errHandler(err)
+	if err != nil {
+		fmt.Printf("Warn: %s down.\n", url)
+	}
 	return string(html)
 }
 
@@ -64,8 +86,15 @@ func fingerprint(text string, lookfor string) string {
 	return fingerprint
 }
 
-func writeData(lines *[]string) {
-	file, err := os.OpenFile(SitesDataFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+func getPageFingerprint(url string, scopeStart string, scopeEnd string, keyword string) string {
+	webpage := getWebPage(url)
+	focus := getFocusContent(webpage, scopeStart, scopeEnd)
+	pageFP := fingerprint(focus, keyword)
+	return pageFP
+}
+
+func writeFile(ofile string, lines *[]string) {
+	file, err := os.OpenFile(ofile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	errHandler(err)
 	defer file.Close()
 
@@ -74,6 +103,35 @@ func writeData(lines *[]string) {
 		writer.WriteString(line + "\n")
 	}
 	writer.Flush()
+}
+
+func runCmp(siteFile string, cacheFile string) {
+	var sitesWithUpdate []string
+	var allSitesStatus []string
+
+	// read first from data cache
+	ptrSigs := readSigCache(cacheFile)
+
+	// read the site list
+	ptrURLs := readFile(siteFile)
+	for _, line := range *ptrURLs {
+		cols := strings.Split(line, ",")
+		newSig := getPageFingerprint(cols[0], cols[1], cols[2], "Engineer")
+
+		// see if Sig is in cache
+		cSigs := *ptrSigs
+		if cMap, ok := cSigs[cols[0]]; ok {
+			//if cMap["sig"] != "" && newSig != cMap["sig"] {
+			if newSig != cMap["sig"] {
+				sitesWithUpdate = append(sitesWithUpdate, cols[0])
+			}
+		}
+		allSitesStatus = append(allSitesStatus, fmt.Sprintf("%s,%s,%d", cols[0], newSig, 0))
+	}
+	fmt.Println("Sites w update")
+	writeFile("sendmail.text", &sitesWithUpdate)
+	fmt.Println("All sites")
+	writeFile(cacheFile, &allSitesStatus)
 }
 
 func main() {
@@ -119,7 +177,6 @@ func main() {
 		fmt.Println("   To test the fingerprinting using the output from --url.")
 		fmt.Println("      ", bin, "[--intext <file>]")
 	} else { // no parameter specified, use comma-delimited file - normal operation
-		ptrList := inputWebPages("career_pages.cdf")
-		writeData(ptrList)
+		runCmp("career_pages.cdf", SitesDataFile)
 	}
 }
