@@ -8,9 +8,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"crypto/tls"
+	"net/mail"
+	"net/smtp"
 )
 
 var (
+	ConfFile      string = "josmon.conf"
 	SitesDataFile string = "sites.data"
 	CareerPages   string = "career_pages.cdf"
 	AlertFile     string = "sendmail.text"
@@ -109,9 +113,10 @@ func writeFile(ofile string, lines *[]string) {
 	writer.Flush()
 }
 
-func runCmp(siteFile string, cacheFile string) {
+func runCmp(siteFile string, cacheFile string) string {
 	var sitesWithUpdate []string
 	var allSitesStatus []string
+	var alertBody string
 
 	// read first from data cache
 	ptrSigs := readSigCache(cacheFile)
@@ -127,12 +132,63 @@ func runCmp(siteFile string, cacheFile string) {
 		if cMap, ok := cSigs[cols[0]]; ok {
 			if newSig != cMap["sig"] {
 				sitesWithUpdate = append(sitesWithUpdate, cols[0])
+				alertBody += cols[0] + "\r\n"
 			}
 		}
 		allSitesStatus = append(allSitesStatus, fmt.Sprintf("%s,%s,%d", cols[0], newSig, 0))
 	}
 	writeFile(AlertFile, &sitesWithUpdate)
 	writeFile(cacheFile, &allSitesStatus)
+	return alertBody
+}
+
+func readConf() *map[string]string {
+	conf := make(map[string]string)
+	ptrConf := readFile(ConfFile)
+	for _, line := range *ptrConf {
+		cols := strings.Split(line, " ")
+		// skip lines starting with # or split returns blank on col#2
+		if cols[1] == "" || string(line[0]) == "#" {
+			continue
+		}
+		conf[cols[0]] = cols[1]
+	}
+	return &conf
+}
+
+func sendMail(conf map[string]string, body string) {
+	from := mail.Address{Name: "Sender", Address: conf["email_from"]}
+	to := mail.Address{Name: "Recipient", Address: conf["email_to"]}
+	auth := smtp.PlainAuth("", conf["smtp_user"], conf["smtp_pass"], conf["smtp_host"])
+	tlsConfig := &tls.Config{
+		ServerName: conf["smtp_host"],
+	}
+
+	conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%s", conf["smtp_host"], conf["smtp_port"]), tlsConfig)
+	errHandler(err)
+
+	client, err := smtp.NewClient(conn, conf["smtp_host"])
+	errHandler(err)
+
+	defer client.Close()
+
+	err = client.Auth(auth)
+	errHandler(err)
+	err = client.Mail(from.Address)
+	errHandler(err)
+	err = client.Rcpt(to.Address)
+
+	writer, err := client.Data()
+	errHandler(err)
+	_, err = fmt.Fprintf(writer, "From: %s\r\n", conf["email_from"])
+	errHandler(err)
+	_, err = fmt.Fprintf(writer, "To: %s\r\n", conf["email_to"])
+	errHandler(err)
+	_, err = fmt.Fprintf(writer, "Subject: Jobs monitor alert\r\n")
+	errHandler(err)
+	_, err = fmt.Fprintf(writer, "\r\n%s\r\n", body)
+	errHandler(err)
+	err = writer.Close()
 }
 
 func main() {
@@ -178,6 +234,10 @@ func main() {
 		fmt.Println("   To test the fingerprinting using the output from --url.")
 		fmt.Println("      ", bin, "[--intext <file>]")
 	} else { // no parameter specified, use comma-delimited file - normal operation
-		runCmp(CareerPages, SitesDataFile)
+		cnf := readConf()
+		alertText := runCmp(CareerPages, SitesDataFile)
+		if alertText != "" {
+			sendMail(*cnf, alertText)
+		}
 	}
 }
