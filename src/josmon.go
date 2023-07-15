@@ -10,7 +10,11 @@ import (
 	"strings"
 )
 
-var SitesDataFile = "sites.data"
+var (
+	SitesDataFile string = "sites.data"
+	CareerPages   string = "career_pages.cdf"
+	AlertFile     string = "sendmail.text"
+)
 
 func errHandler(e error) {
 	if e != nil {
@@ -47,7 +51,7 @@ func readSigCache(file string) *map[string]map[string]string {
 	for _, line := range *ptrSigs {
 		p := strings.Split(line, ",")
 		mapSig[p[0]] = map[string]string{
-			"sig": p[1],
+			"sig":     p[1],
 			"lastupd": p[2],
 		}
 	}
@@ -121,16 +125,13 @@ func runCmp(siteFile string, cacheFile string) {
 		// see if Sig is in cache
 		cSigs := *ptrSigs
 		if cMap, ok := cSigs[cols[0]]; ok {
-			//if cMap["sig"] != "" && newSig != cMap["sig"] {
 			if newSig != cMap["sig"] {
 				sitesWithUpdate = append(sitesWithUpdate, cols[0])
 			}
 		}
 		allSitesStatus = append(allSitesStatus, fmt.Sprintf("%s,%s,%d", cols[0], newSig, 0))
 	}
-	fmt.Println("Sites w update")
-	writeFile("sendmail.text", &sitesWithUpdate)
-	fmt.Println("All sites")
+	writeFile(AlertFile, &sitesWithUpdate)
 	writeFile(cacheFile, &allSitesStatus)
 }
 
@@ -177,6 +178,6 @@ func main() {
 		fmt.Println("   To test the fingerprinting using the output from --url.")
 		fmt.Println("      ", bin, "[--intext <file>]")
 	} else { // no parameter specified, use comma-delimited file - normal operation
-		runCmp("career_pages.cdf", SitesDataFile)
+		runCmp(CareerPages, SitesDataFile)
 	}
 }
