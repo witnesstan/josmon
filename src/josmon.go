@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"net/mail"
 	"net/smtp"
+	"time"
 )
 
 var (
@@ -63,7 +64,10 @@ func readSigCache(file string) *map[string]map[string]string {
 }
 
 func getWebPage(url string) string {
-	response, err := http.Get(url)
+	client := http.Client {
+		Timeout: time.Second * 4,
+	}
+	response, err := client.Get(url)
 	errHandler(err)
 	defer response.Body.Close()
 
