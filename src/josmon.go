@@ -81,8 +81,10 @@ func getWebPage(url string) string {
 func getFocusContent(html string, scopeStart string, scopeEnd string) string {
 	startPos := strings.Index(html, scopeStart)
 	endPos := strings.Index(html, scopeEnd)
-	if startPos >= 0 && endPos >= 0 {
+	if startPos >= 0 && endPos > startPos {
 		return html[startPos:endPos]
+	} else if endPos <= startPos {
+		return "-1"
 	} else {
 		return ""
 	}
@@ -101,8 +103,12 @@ func fingerprint(text string, lookfor string) string {
 func getPageFingerprint(url string, scopeStart string, scopeEnd string, keyword string) string {
 	webpage := getWebPage(url)
 	focus := getFocusContent(webpage, scopeStart, scopeEnd)
-	pageFP := fingerprint(focus, keyword)
-	return pageFP
+	if focus != "-1" {
+		pageFP := fingerprint(focus, keyword)
+		return pageFP
+	} else {
+		return "wrong boundery"
+	}
 }
 
 func writeFile(ofile string, lines *[]string) {
