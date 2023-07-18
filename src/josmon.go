@@ -117,7 +117,7 @@ func writeFile(ofile string, lines *[]string) {
 	writer.Flush()
 }
 
-func runCmp(siteFile string, cacheFile string) string {
+func runCmp(siteFile string, cacheFile string, keyword string) string {
 	var sitesWithUpdate []string
 	var allSitesStatus []string
 	var alertBody string
@@ -127,9 +127,11 @@ func runCmp(siteFile string, cacheFile string) string {
 
 	// read the site list
 	ptrURLs := readFile(siteFile)
+	fmt.Println("looking for", keyword)
 	for _, line := range *ptrURLs {
 		cols := strings.Split(line, ",")
-		newSig := getPageFingerprint(cols[0], cols[1], cols[2], "Engineer")
+		fmt.Println(cols[0], "-", cols[1], "-", cols[2])
+		newSig := getPageFingerprint(cols[0], cols[1], cols[2], keyword)
 
 		// see if Sig is in cache
 		cSigs := *ptrSigs
@@ -226,8 +228,9 @@ func main() {
 	} else if len(pFile) > 0 { // focused input file is provided
 		fdata, err := os.ReadFile(pFile)
 		errHandler(err)
+		cnf := readConf()
 		// fingerprint keyword
-		fmt.Println(fingerprint(string(fdata), "Engineer"))
+		fmt.Println(fingerprint(string(fdata), (*cnf)["find_keyword"]))
 	} else if pHelp { // help
 		cmd := strings.Split(os.Args[0], "\\")
 		bin := cmd[len(cmd)-1]
@@ -239,7 +242,7 @@ func main() {
 		fmt.Println("      ", bin, "[--intext <file>]")
 	} else { // no parameter specified, use comma-delimited file - normal operation
 		cnf := readConf()
-		alertText := runCmp(CareerPages, SitesDataFile)
+		alertText := runCmp(CareerPages, SitesDataFile, (*cnf)["find_keyword"])
 		if alertText != "" {
 			sendMail(*cnf, alertText)
 		}
