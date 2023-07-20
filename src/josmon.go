@@ -21,9 +21,13 @@ var (
 	AlertFile     string = "sendmail.text"
 )
 
-func errHandler(e error) {
+func errHandler(e error, bail bool) {
 	if e != nil {
-		panic(e)
+		if bail {
+			panic(e)
+		} else {
+			fmt.Println(e)
+		}
 	}
 }
 
@@ -33,7 +37,7 @@ func readFile(infile string) *[]string {
 	_, err := os.Stat(infile)
 	if err == nil {
 		file, err := os.Open(infile)
-		errHandler(err)
+		errHandler(err, true)
 		defer file.Close()
 
 		scanner := bufio.NewScanner(file)
@@ -68,13 +72,11 @@ func getWebPage(url string) string {
 		Timeout: time.Second * 4,
 	}
 	response, err := client.Get(url)
-	errHandler(err)
+	errHandler(err, false)
 	defer response.Body.Close()
 
 	html, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		fmt.Printf("Warn: %s down.\n", url)
-	}
+	errHandler(err, false)
 	return string(html)
 }
 
@@ -113,7 +115,7 @@ func getPageFingerprint(url string, scopeStart string, scopeEnd string, keyword 
 
 func writeFile(ofile string, lines *[]string) {
 	file, err := os.OpenFile(ofile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	errHandler(err)
+	errHandler(err, true)
 	defer file.Close()
 
 	writer := bufio.NewWriter(file)
@@ -177,29 +179,29 @@ func sendMail(conf map[string]string, body string) {
 	}
 
 	conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%s", conf["smtp_host"], conf["smtp_port"]), tlsConfig)
-	errHandler(err)
+	errHandler(err, true)
 
 	client, err := smtp.NewClient(conn, conf["smtp_host"])
-	errHandler(err)
+	errHandler(err, true)
 
 	defer client.Close()
 
 	err = client.Auth(auth)
-	errHandler(err)
+	errHandler(err, true)
 	err = client.Mail(from.Address)
-	errHandler(err)
+	errHandler(err, true)
 	err = client.Rcpt(to.Address)
 
 	writer, err := client.Data()
-	errHandler(err)
+	errHandler(err, true)
 	_, err = fmt.Fprintf(writer, "From: %s\r\n", conf["email_from"])
-	errHandler(err)
+	errHandler(err, true)
 	_, err = fmt.Fprintf(writer, "To: %s\r\n", conf["email_to"])
-	errHandler(err)
+	errHandler(err, true)
 	_, err = fmt.Fprintf(writer, "Subject: Jobs monitor alert\r\n")
-	errHandler(err)
+	errHandler(err, true)
 	_, err = fmt.Fprintf(writer, "\r\n%s\r\n", body)
-	errHandler(err)
+	errHandler(err, true)
 	err = writer.Close()
 }
 
@@ -237,7 +239,7 @@ func main() {
 		}
 	} else if len(pFile) > 0 { // focused input file is provided
 		fdata, err := os.ReadFile(pFile)
-		errHandler(err)
+		errHandler(err, true)
 		cnf := readConf()
 		// fingerprint keyword
 		fmt.Println(fingerprint(string(fdata), (*cnf)["find_keyword"]))
