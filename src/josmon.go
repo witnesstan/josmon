@@ -210,6 +210,7 @@ func main() {
 	var pEnd string
 	var pFile string
 	var pHelp bool
+	var pNoMail bool
 
 	// retrieve from page, output focused text
 	flag.StringVar(&pURL, "url", "", "Career page URL.")
@@ -218,6 +219,9 @@ func main() {
 
 	// read focused text from file
 	flag.StringVar(&pFile, "intext", "", "Read from file and get keyword positions.")
+
+	// don't send email
+	flag.BoolVar(&pNoMail, "noemail", false, "Do not send email.")
 
 	// help
 	flag.BoolVar(&pHelp, "help", false, "Show help.")
@@ -249,7 +253,7 @@ func main() {
 	} else { // no parameter specified, use comma-delimited file - normal operation
 		cnf := readConf()
 		alertText := runCmp(CareerPages, SitesDataFile, (*cnf)["find_keyword"])
-		if alertText != "" {
+		if !pNoMail && alertText != "" {
 			sendMail(*cnf, alertText)
 		}
 	}
