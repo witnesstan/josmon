@@ -69,7 +69,7 @@ func readSigCache(file string) *map[string]map[string]string {
 
 func getWebPage(url string) string {
 	client := http.Client {
-		Timeout: time.Second * 4,
+		Timeout: time.Second * 8,
 	}
 	response, err := client.Get(url)
 	errHandler(err, false)
@@ -95,7 +95,7 @@ func getFocusContent(html string, scopeStart string, scopeEnd string) string {
 func fingerprint(text string, lookfor string) string {
 	// look for all occurences of keyword
 	parts := strings.Split(text, lookfor)
-	fingerprint := ""
+	fingerprint := fmt.Sprintf("%d_", len(parts))
 	for i := 1; i < len(parts)-1; i++ {
 		fingerprint += fmt.Sprintf("%d_", len(parts[i]))
 	}
