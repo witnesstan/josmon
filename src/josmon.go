@@ -2,15 +2,16 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strings"
-	"crypto/tls"
 	"net/mail"
 	"net/smtp"
+	"os"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,10 @@ var (
 	SitesDataFile string = "sites.data"
 	CareerPages   string = "career_pages.cdf"
 	AlertFile     string = "sendmail.text"
+
+	mutex   sync.Mutex
+	wg      sync.WaitGroup
+	NewSigs sync.Map
 )
 
 func errHandler(e error, bail bool) {
@@ -68,7 +73,7 @@ func readSigCache(file string) *map[string]map[string]string {
 }
 
 func getWebPage(url string) string {
-	client := http.Client {
+	client := http.Client{
 		Timeout: time.Second * 8,
 	}
 	response, err := client.Get(url)
@@ -102,15 +107,17 @@ func fingerprint(text string, lookfor string) string {
 	return fingerprint
 }
 
-func getPageFingerprint(url string, scopeStart string, scopeEnd string, keyword string) string {
+func getPageFingerprint(url string, scopeStart string, scopeEnd string, keyword string) {
 	webpage := getWebPage(url)
 	focus := getFocusContent(webpage, scopeStart, scopeEnd)
+	pageFP := "wrong boundary"
 	if focus != "-1" {
-		pageFP := fingerprint(focus, keyword)
-		return pageFP
-	} else {
-		return "wrong boundery"
+		pageFP = fingerprint(focus, keyword)
 	}
+	mutex.Lock()
+	NewSigs.Store(url, pageFP)
+	mutex.Unlock()
+	wg.Done()
 }
 
 func writeFile(ofile string, lines *[]string) {
@@ -135,22 +142,33 @@ func runCmp(siteFile string, cacheFile string, keyword string) string {
 
 	// read the site list
 	ptrURLs := readFile(siteFile)
+
+	wg.Add(len(*ptrURLs))
+
 	fmt.Println("looking for", keyword)
 	for _, line := range *ptrURLs {
 		cols := strings.Split(line, ",")
 		fmt.Println(cols[0], "-", cols[1], "-", cols[2])
-		newSig := getPageFingerprint(cols[0], cols[1], cols[2], keyword)
+		// fetch web pages concurrently
+		go getPageFingerprint(cols[0], cols[1], cols[2], keyword)
+	}
+	wg.Wait()
 
+	// process all sigs
+	NewSigs.Range(func(key, value interface{}) bool {
+		siteO := fmt.Sprintf("%s", key)
+		sigO := fmt.Sprintf("%s", value)
 		// see if Sig is in cache
 		cSigs := *ptrSigs
-		if cMap, ok := cSigs[cols[0]]; ok {
-			if newSig != cMap["sig"] {
-				sitesWithUpdate = append(sitesWithUpdate, cols[0])
-				alertBody += cols[0] + "\r\n"
+		if cMap, ok := cSigs[siteO]; ok {
+			if sigO != cMap["sig"] {
+				sitesWithUpdate = append(sitesWithUpdate, siteO)
+				alertBody += siteO + "\r\n"
 			}
 		}
-		allSitesStatus = append(allSitesStatus, fmt.Sprintf("%s,%s,%d", cols[0], newSig, 0))
-	}
+		allSitesStatus = append(allSitesStatus, fmt.Sprintf("%s,%s,%d", siteO, sigO, 0))
+		return true
+	})
 	writeFile(AlertFile, &sitesWithUpdate)
 	writeFile(cacheFile, &allSitesStatus)
 	return alertBody
