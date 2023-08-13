@@ -33,7 +33,7 @@ A tool that can detect changes to career web pages and alert the user. This is u
   `git clone https://github.com/witnesstan/josmon.git`
 - Build the code.
 
-  `cd src; go build`
+  `cd src; go build josmon.go`
 - Run `josmon --help`.
 
 ## Configuration
