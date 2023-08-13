@@ -30,7 +30,7 @@ The code in this branch uses threading during http get. It dramatically improves
   `git clone https://github.com/witnesstan/josmon.git`
 - Build the code.
 
-  `cd src; go build`
+  `cd src; go build josmon.go`
 - Run `josmon --help`.
 
 ## Configuration
