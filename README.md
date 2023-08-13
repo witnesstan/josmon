@@ -6,6 +6,7 @@ Job site monitoring tool
 - [Project Title](#project-title)
 - [Description](#description)
 - [Features](#features)
+- [Branches](#Branches)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
@@ -21,6 +22,10 @@ A tool that can detect changes to career web pages and alert the user. This is u
 - Cache results to file, retrieve later for compare.
 - Send email alerts.
 - Uses configuration file.
+
+## Branches
+- main - The basic serial sequence CLI tool.
+- threaded - Uses goroutines for threading on the same basic tool in main branch.
 
 ## Installation
 - Grab a copy of the source code.
