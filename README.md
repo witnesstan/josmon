@@ -14,6 +14,8 @@ Job site monitoring tool
 ## Description
 A tool that can detect changes to career web pages and alert the user. This is useful for job seekers who are monitoring a company website for new information regarding the role that they are interested in. The tool is run through a cron job to query the sites regularly. Later, I am going to make this run in serverless like AWS Lambda.
 
+The code in this branch uses threading during http get. It dramatically improves on the speed of the entire tool.
+
 ## Features
 - Detects changes in HTML pages (doesn't work with JS-loaded content).
 - Retrieves list of website URLs from an input file.
